@@ -19,12 +19,15 @@ public class Payload {
     }
 
     // Parameterized constructor
-    public Payload(String id, Map<String, Object> metadata, String content, List<String> media) {
-        this.id = id;
-        this.metadata = metadata;
-        this.content = content;
-        this.media = media;
-    }
+  public Payload(String id, Map<String, Object> metadata, String content, List<String> media, float[] embedding) {
+    this.id = id;
+    this.metadata = metadata;
+    this.content = content;
+    this.media = media;
+    this.embedding = embedding;
+}
+
+
 
     // Getters and Setters
     public String getId() {

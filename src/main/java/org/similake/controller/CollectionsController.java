@@ -11,8 +11,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/collections")
@@ -90,5 +92,17 @@ public class CollectionsController {
 
        // logger.info(" collections.getAllVectorStores() : {}",  collections.getAllVectorStores());
         return new ResponseEntity<>("Payload added successfully to " + vectorName, HttpStatus.CREATED);
+    }
+
+    @GetMapping("/{vectorName}/payloads")
+    public ResponseEntity<List<Payload>> getAllPayloads(@PathVariable("vectorName") String vectorName) {
+        VectorStore vectorStore = collections.getVectorStoreByName(vectorName);
+        if (vectorStore == null) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+        List<Payload> payloads = vectorStore.getPoints().stream()
+                .map(point -> new Payload(point.getId().toString(), Map.of("content", point.getContent()), point.getContent(), List.of(), point.getVector()))
+                .collect(Collectors.toList());
+        return new ResponseEntity<>(payloads, HttpStatus.OK);
     }
 }
