@@ -3,7 +3,7 @@ package org.similake.model;
 import java.util.Arrays;
 import java.util.UUID;
 
-public class Point {
+public class Point implements java.io.Serializable {
     // Fields representing the JSON structure
     private UUID id;
     private String content;

@@ -9,6 +9,7 @@ public class VectorStore {
     private Distance distanceType;
     private List<Point> points;
 
+
     // Constructor to initialize VectorStore with size and distance type
     public VectorStore(int size, Distance distanceType) {
         this.size = size;

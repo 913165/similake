@@ -18,6 +18,7 @@ public class Collections {
     // Create and add a new VectorStore (instead of Collection) with vector size and distance metric
     public void addVectorStore(String storeName, int size, Distance distanceType) {
         VectorStore vectorStore = new VectorStore(size, distanceType);
+
         collectionMap.put(storeName, vectorStore);
     }
 
