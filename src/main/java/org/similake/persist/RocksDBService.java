@@ -11,15 +11,15 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 @Service
-public class RocksDBService {
+public class RocksDBService implements VectorStoreService{
     private static final Logger logger = LoggerFactory.getLogger(RocksDBService.class);
 
     private static final String dbPath = "./collections/";
@@ -30,8 +30,9 @@ public class RocksDBService {
         RocksDB.loadLibrary();
     }
 
+    @Override
     // Method to persist CollectionConfig to disk
-    public String persistVectorToDisk(String collectionName, CollectionConfig config) {
+    public String persistVectorToStorage(String collectionName, CollectionConfig config) {
         logger.info("Persisting collection to disk: {}", collectionName);
         try (final Options options = new Options().setCreateIfMissing(true)) {
             try (final RocksDB rocksDB = RocksDB.open(options, dbPath + collectionName)) {
@@ -72,7 +73,7 @@ public class RocksDBService {
     }
 
     // Method to fetch CollectionConfig from RocksDB
-    public CollectionConfig fetchVectorFromDisk(String collectionName) {
+    public CollectionConfig fetchVectorFromStorage(String collectionName) {
         logger.info("Fetching collection from disk: {}", collectionName);
         if (Files.exists(Paths.get(configPath + collectionName))) {
         try (final Options options = new Options().setCreateIfMissing(false)) { // Set to false since the collection must already exist
@@ -107,7 +108,7 @@ public class RocksDBService {
             for (File configDir : configDirs) {
                 String vectorName = configDir.getName();
                 // Fetch and deserialize the CollectionConfig for this vector store
-                CollectionConfig collectionConfig = fetchVectorFromDisk(vectorName);
+                CollectionConfig collectionConfig = fetchVectorFromStorage(vectorName);
                 if (collectionConfig != null) {
                     collectionConfigs.put(vectorName, collectionConfig);
                     logger.info("Fetched config for vector store: {}", vectorName);
@@ -183,6 +184,53 @@ public class RocksDBService {
              ObjectInputStream in = new ObjectInputStream(bis)) {
             return (Point) in.readObject();
         }
+    }
+
+    // **Updated Method** to remove a vector and its configuration recursively
+    @Override
+    public boolean removeVector(String collectionName) {
+        logger.info("Removing vector and config for collection: {}", collectionName);
+        boolean isSuccess = false;
+
+        try {
+            // Recursively delete the vector data (all points)
+            Path vectorDirPath = Paths.get(dbPath + collectionName);
+            Path configDirPath = Paths.get(configPath + collectionName);
+
+            // Recursively delete vector directory and its contents
+            if (Files.exists(vectorDirPath)) {
+                deleteDirectoryRecursively(vectorDirPath);
+            }
+
+            // Recursively delete config directory and its contents
+            if (Files.exists(configDirPath)) {
+                deleteDirectoryRecursively(configDirPath);
+            }
+
+            isSuccess = true;
+            logger.info("Successfully removed vector and config for collection: {}", collectionName);
+        } catch (IOException e) {
+            logger.error("Error while removing vector or config for collection: " + collectionName, e);
+        }
+
+        return isSuccess;
+    }
+
+    // Helper method to recursively delete a directory and its contents
+    private void deleteDirectoryRecursively(Path path) throws IOException {
+        Files.walkFileTree(path, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Files.delete(file); // Delete file
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                Files.delete(dir); // Delete directory after all contents are deleted
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 
 }
