@@ -25,4 +25,7 @@ public interface VectorStoreService {
 
     // Method to fetch all Points from storage for a given vector store
     List<Point> getAllPointsFromVectorStore(String vectorName);
+
+    // **New Method** to remove a vector (all its points) and its configuration
+    boolean removeVector(String collectionName);
 }
