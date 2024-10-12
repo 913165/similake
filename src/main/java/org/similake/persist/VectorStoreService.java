@@ -12,7 +12,7 @@ public interface VectorStoreService {
     String persistVectorToStorage(String collectionName, CollectionConfig config);
 
     // Method to persist CollectionConfig to storage
-    void createConfig(String collectionName, CollectionConfig config);
+    boolean createConfig(String collectionName, CollectionConfig config);
 
     // Method to fetch a CollectionConfig from storage
     CollectionConfig fetchVectorFromStorage(String collectionName);

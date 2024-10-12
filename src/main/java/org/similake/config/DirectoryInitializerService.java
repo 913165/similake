@@ -1,8 +1,10 @@
 package org.similake.config;
 
 import jakarta.annotation.PostConstruct;
+import org.similake.persist.RocksDBService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -15,8 +17,12 @@ public class DirectoryInitializerService {
 
     private static final Logger logger = LoggerFactory.getLogger(DirectoryInitializerService.class);
 
-    private static final String COLLECTIONS_DIR = "./collections";
-    private static final String CONFIG_DIR = "./config";
+
+    @Value("${db.path}")
+    private  String COLLECTIONS_DIR;
+
+    @Value("${config.path}")
+    private  String CONFIG_DIR;
 
    @PostConstruct
     public void initDirectories() {

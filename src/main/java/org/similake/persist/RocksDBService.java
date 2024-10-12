@@ -8,6 +8,7 @@ import org.similake.collections.config.CollectionConfig;
 import org.similake.model.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -22,10 +23,11 @@ import java.util.Map;
 public class RocksDBService implements VectorStoreService{
     private static final Logger logger = LoggerFactory.getLogger(RocksDBService.class);
 
-    private static final String dbPath = "./collections/";
+    @Value("${db.path}")
+    private  String COLLECTIONS_DIR;
 
-    private static final String configPath = "./config/";
-
+    @Value("${config.path}")
+    private  String CONFIG_DIR;
     static {
         RocksDB.loadLibrary();
     }
@@ -35,7 +37,7 @@ public class RocksDBService implements VectorStoreService{
     public String persistVectorToStorage(String collectionName, CollectionConfig config) {
         logger.info("Persisting collection to disk: {}", collectionName);
         try (final Options options = new Options().setCreateIfMissing(true)) {
-            try (final RocksDB rocksDB = RocksDB.open(options, dbPath + collectionName)) {
+            try (final RocksDB rocksDB = RocksDB.open(options, COLLECTIONS_DIR + collectionName)) {
                 // Serialize CollectionConfig object to byte array
                 createConfig(collectionName, config);
                 logger.info("Persisted collection to disk: {}", collectionName);
@@ -47,10 +49,11 @@ public class RocksDBService implements VectorStoreService{
     }
 
     // Method to persist CollectionConfig to disk
-    public void createConfig(String collectionName, CollectionConfig config) {
+    public boolean createConfig(String collectionName, CollectionConfig config) {
         logger.info("Persisting config to disk: " + collectionName);
+        boolean isSuccess = true;
         try (final Options options = new Options().setCreateIfMissing(true)) {
-            try (final RocksDB rocksDB = RocksDB.open(options, configPath + collectionName)) {
+            try (final RocksDB rocksDB = RocksDB.open(options, CONFIG_DIR + collectionName)) {
                 // Serialize CollectionConfig object to byte array
                 byte[] serializedConfig = serializeCollectionConfig(config);
                 // Store serialized CollectionConfig in RocksDB using collectionName as the key
@@ -59,7 +62,11 @@ public class RocksDBService implements VectorStoreService{
             }
         } catch (RocksDBException | IOException e) {
             throw new RuntimeException(e);
+
         }
+        isSuccess = true;
+        logger.info("Persisted config to disk: {}", isSuccess);
+        return isSuccess;
     }
 
     // Helper method to serialize CollectionConfig to byte array
@@ -75,9 +82,9 @@ public class RocksDBService implements VectorStoreService{
     // Method to fetch CollectionConfig from RocksDB
     public CollectionConfig fetchVectorFromStorage(String collectionName) {
         logger.info("Fetching collection from disk: {}", collectionName);
-        if (Files.exists(Paths.get(configPath + collectionName))) {
+        if (Files.exists(Paths.get(CONFIG_DIR + collectionName))) {
         try (final Options options = new Options().setCreateIfMissing(false)) { // Set to false since the collection must already exist
-            try (final RocksDB rocksDB = RocksDB.openReadOnly(options, configPath + collectionName)) {
+            try (final RocksDB rocksDB = RocksDB.openReadOnly(options, CONFIG_DIR + collectionName)) {
                 // Retrieve the serialized CollectionConfig byte array using collectionName as the key
                 byte[] serializedConfig = rocksDB.get(collectionName.getBytes());
                 // If no collection is found, return null or handle as needed
@@ -102,7 +109,7 @@ public class RocksDBService implements VectorStoreService{
     public Map<String, CollectionConfig> fetchAllCollectionConfigs() {
         Map<String, CollectionConfig> collectionConfigs = new HashMap<>();
         // Iterate over each vector store (directory) in the "config" folder
-        File configDirectory = new File(configPath);
+        File configDirectory = new File(CONFIG_DIR);
         File[] configDirs = configDirectory.listFiles(File::isDirectory);
         if (configDirs != null) {
             for (File configDir : configDirs) {
@@ -131,7 +138,7 @@ public class RocksDBService implements VectorStoreService{
         logger.info("Adding payload to VectorStore: {}", vectorName);
 
         try (final Options options = new Options().setCreateIfMissing(true)) {
-            try (final RocksDB rocksDB = RocksDB.open(options, dbPath + vectorName)) {
+            try (final RocksDB rocksDB = RocksDB.open(options, COLLECTIONS_DIR + vectorName)) {
 
                 // Serialize Point object (representing Payload) to byte array
                 byte[] serializedPoint = serializePoint(point);
@@ -162,7 +169,7 @@ public class RocksDBService implements VectorStoreService{
         List<Point> points = new ArrayList<>();
 
         try (final Options options = new Options().setCreateIfMissing(false)) {
-            try (final RocksDB rocksDB = RocksDB.open(options, dbPath + vectorName)) {
+            try (final RocksDB rocksDB = RocksDB.open(options, COLLECTIONS_DIR + vectorName)) {
                 // Iterate through all the key-value pairs in RocksDB
                 RocksIterator iterator = rocksDB.newIterator();
                 for (iterator.seekToFirst(); iterator.isValid(); iterator.next()) {
@@ -194,8 +201,8 @@ public class RocksDBService implements VectorStoreService{
 
         try {
             // Recursively delete the vector data (all points)
-            Path vectorDirPath = Paths.get(dbPath + collectionName);
-            Path configDirPath = Paths.get(configPath + collectionName);
+            Path vectorDirPath = Paths.get(COLLECTIONS_DIR + collectionName);
+            Path configDirPath = Paths.get(CONFIG_DIR + collectionName);
 
             // Recursively delete vector directory and its contents
             if (Files.exists(vectorDirPath)) {
