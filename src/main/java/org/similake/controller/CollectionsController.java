@@ -42,7 +42,7 @@ public class CollectionsController {
             @RequestHeader("api-key") String apiKey,
             @RequestBody Map<String, Object> requestBody) {
 
-        CollectionConfig config = CollectionConfig.fromMap(storeName, requestBody);
+
 
         int size = (int) requestBody.get("size");
         String distanceMetric = (String) requestBody.get("distance");
@@ -55,7 +55,7 @@ public class CollectionsController {
         } catch (IllegalArgumentException e) {
             return new ResponseEntity<>("Invalid distance metric", HttpStatus.BAD_REQUEST);
         }
-
+        CollectionConfig config = CollectionConfig.fromMap(storeName, requestBody);
         // Conditionally persist or store in memory based on the `persistent` flag
         if (persist != null && persist.equals("true")) {
             // Code for persisting the vector store (e.g., save to disk or database)

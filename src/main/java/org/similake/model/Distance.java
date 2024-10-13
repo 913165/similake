@@ -10,7 +10,7 @@ package org.similake.model;
  */
 public enum Distance {
     Cosine(1),   // Cosine similarity
-    Euclid(2),   // Euclidean distance
+    Euclidean(2),   // Euclidean distance
     Dot(3),      // Dot product
     Manhattan(4); // Manhattan distance
 
