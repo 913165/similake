@@ -15,10 +15,10 @@ CMD ["java", "-jar", "similake-0.0.1-SNAPSHOT.jar"]
 
 
 # build docker image from Dockerfile
-# docker build -t tinumistry/similake .
+# docker build -t tinumistry/similakem2 .
 
 # run docker image
-# docker run -p 8080:8080 tinumistry/similake
+# docker run -p 8080:8080 tinumistry/similakem2
 
 # push docker image to docker hub
-# docker push tinumistry/similake
+# docker push tinumistry/similakem2
