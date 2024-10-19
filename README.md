@@ -13,7 +13,7 @@ Run the Docker container:
  
 foe mac os
 ```
-docker run -p 8080:8080 tinumistry/similakem2
+docker run -p 6767:6767 tinumistry/similakem2
 
 
 ```
