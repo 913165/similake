@@ -6,13 +6,14 @@ import org.similake.model.VectorStore;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Collections {
     private Map<String, VectorStore> collectionMap;
 
     // Constructor to initialize collection map
     public Collections() {
-        this.collectionMap = new HashMap<>();
+        this.collectionMap = new ConcurrentHashMap<>();
     }
 
     // Create and add a new VectorStore (instead of Collection) with vector size and distance metric
