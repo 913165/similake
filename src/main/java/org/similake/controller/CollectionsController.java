@@ -138,7 +138,8 @@ public class CollectionsController {
         UUID id = UUID.fromString(payload.getId()); // Assuming Payload has a getId() method
         String content = payload.getContent();      // Assuming Payload has a getContent() method
         float[] embedding = payload.getEmbedding(); // Assuming Payload has a getEmbedding() method
-        Point point = new Point(id, content, embedding);
+        Map<String, Object> metadata = payload.getMetadata();// Assuming Payload has a getMetadata() method
+        Point point = new Point(id, content, embedding,metadata);
         // First, try to retrieve the vector store from memory
         VectorStore vectorStore = collections.getVectorStoreByName(vectorName);
         // If the vector store is not in memory, check RocksDB
@@ -169,14 +170,14 @@ public class CollectionsController {
             if(allVectorStores2.containsKey(vectorName)){
                 List<Point> allPointsFromVectorStore = rocksDBService.getAllPointsFromVectorStore(vectorName);
                 List<Payload> payloads = allPointsFromVectorStore.stream()
-                        .map(point -> new Payload(point.getId().toString(), Map.of("content", point.getContent()), point.getContent(), List.of(), point.getVector()))
+                        .map(point -> new Payload(point.getId().toString(),point.getMetadata(),point.getContent(), List.of(), point.getVector()))
                         .collect(Collectors.toList());
                 return new ResponseEntity<>(payloads, HttpStatus.OK);
             }
         }
         assert vectorStore != null;
         List<Payload> payloads = vectorStore.getPoints().stream()
-                .map(point -> new Payload(point.getId().toString(), Map.of("content", point.getContent()), point.getContent(), List.of(), point.getVector()))
+                .map(point -> new Payload(point.getId().toString(),point.getMetadata(),point.getContent(), List.of(), point.getVector()))
                 .collect(Collectors.toList());
         return new ResponseEntity<>(payloads, HttpStatus.OK);
     }
@@ -209,8 +210,8 @@ public class CollectionsController {
         UUID id = UUID.fromString(payload.getId()); // Assuming Payload has getId() method
         String content = payload.getContent();      // Assuming Payload has getContent() method
         float[] embedding = payload.getEmbedding(); // Assuming Payload has getEmbedding() method
-
-        Point point = new Point(id, content, embedding);
+        Map<String, Object> metadata = payload.getMetadata();
+        Point point = new Point(id, content, embedding,metadata);
 
         // Persist the point using RocksDBService
         String responseMessage = rocksDBService.addPayloadToVectorStore(vectorName, point);

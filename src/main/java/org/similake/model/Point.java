@@ -1,6 +1,7 @@
 package org.similake.model;
 
 import java.util.Arrays;
+import java.util.Map;
 import java.util.UUID;
 
 public class Point implements java.io.Serializable {
@@ -8,6 +9,7 @@ public class Point implements java.io.Serializable {
     private UUID id;
     private String content;
     private float[] vector;
+    private Map<String, Object> metadata;
 
     // Constructor to initialize fields
     public Point(UUID id, String content, float[] vector) {
@@ -15,6 +17,15 @@ public class Point implements java.io.Serializable {
         this.content = content;
         this.vector = vector;
     }
+
+    // Constructor to initialize fields
+    public Point(UUID id, String content, float[] vector, Map<String, Object> metadata) {
+        this.id = id;
+        this.content = content;
+        this.vector = vector;
+        this.metadata = metadata;
+    }
+
 
     // Getters and setters
     public UUID getId() {
@@ -49,5 +60,13 @@ public class Point implements java.io.Serializable {
                 ", content='" + content + '\'' +
                 ", vector=" + Arrays.toString(vector) +
                 '}';
+    }
+
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
+
+    public void setMetadata(Map<String, Object> metadata) {
+        this.metadata = metadata;
     }
 }
