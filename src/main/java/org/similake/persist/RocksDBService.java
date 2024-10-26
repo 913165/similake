@@ -14,10 +14,7 @@ import org.springframework.stereotype.Service;
 import java.io.*;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 public class RocksDBService implements VectorStoreService{
@@ -183,6 +180,75 @@ public class RocksDBService implements VectorStoreService{
         }
 
         return points;
+    }
+
+    public List<Point> getAllPointsFromVectorStoreWithFilter(String vectorName, Map<String, Object> metadata) {
+        List<Point> points = new ArrayList<>();
+
+        try (final Options options = new Options().setCreateIfMissing(false)) {
+            try (final RocksDB rocksDB = RocksDB.open(options, COLLECTIONS_DIR + vectorName)) {
+                // Iterate through all the key-value pairs in RocksDB
+                RocksIterator iterator = rocksDB.newIterator();
+                for (iterator.seekToFirst(); iterator.isValid(); iterator.next()) {
+                    byte[] serializedPoint = iterator.value();
+                    Point point = deserializePoint(serializedPoint);
+
+                    // Apply metadata filtering
+                    if (matchesMetadata(point, metadata)) {
+                        points.add(point);
+                    }
+                }
+            }
+        } catch (RocksDBException | IOException | ClassNotFoundException e) {
+            logger.error("Error while fetching points from RocksDB for vector store: " + vectorName, e);
+        }
+
+        return points;
+    }
+
+    /**
+     * Checks if a point matches all the metadata criteria
+     * @param point The point to check
+     * @param metadata The metadata criteria to match against
+     * @return true if the point matches all metadata criteria, false otherwise
+     */
+    private boolean matchesMetadata(Point point, Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return true; // No filtering needed
+        }
+
+        Map<String, Object> pointMetadata = point.getMetadata();
+        if (pointMetadata == null) {
+            return false; // Point has no metadata, but filter criteria exist
+        }
+
+        return metadata.entrySet().stream().allMatch(entry -> {
+            String key = entry.getKey();
+            Object filterValue = entry.getValue();
+            Object pointValue = pointMetadata.get(key);
+
+            if (pointValue == null) {
+                return false; // Required metadata field doesn't exist in point
+            }
+
+            // Handle different types of values
+            if (filterValue instanceof String) {
+                return filterValue.toString().equals(pointValue.toString());
+            } else if (filterValue instanceof Number) {
+                // Convert both to double for number comparison
+                double filterNum = ((Number) filterValue).doubleValue();
+                double pointNum = ((Number) pointValue).doubleValue();
+                return Double.compare(filterNum, pointNum) == 0;
+            } else if (filterValue instanceof Boolean) {
+                return filterValue.equals(pointValue);
+            } else if (filterValue instanceof Collection) {
+                // If the filter value is a collection, check if point value is in that collection
+                return ((Collection<?>) filterValue).contains(pointValue);
+            }
+
+            // Default to direct equality comparison
+            return filterValue.equals(pointValue);
+        });
     }
 
     // Helper method to deserialize byte array back to Point object

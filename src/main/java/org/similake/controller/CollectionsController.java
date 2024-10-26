@@ -2,6 +2,7 @@ package org.similake.controller;
 
 import org.similake.collections.config.CollectionConfig;
 import org.similake.collections.Collections;
+import org.similake.creteria.FilterCriteria;
 import org.similake.model.Distance;
 import org.similake.model.Payload;
 import org.similake.model.Point;
@@ -12,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -162,7 +164,12 @@ public class CollectionsController {
 
 
     @GetMapping("/{vectorName}/payloads")
-    public ResponseEntity<List<Payload>> getAllPayloads(@PathVariable("vectorName") String vectorName) {
+    public ResponseEntity<List<Payload>> getAllPayloads(
+            @PathVariable("vectorName") String vectorName,
+            @RequestParam MultiValueMap<String, String> metadata) {
+
+        List<FilterCriteria> filters = convertToFilterCriteria(metadata);
+        logger.info("Filters: {}", filters);
 
         VectorStore vectorStore = collections.getVectorStoreByName(vectorName);
         if (vectorStore == null) {
@@ -170,16 +177,102 @@ public class CollectionsController {
             if(allVectorStores2.containsKey(vectorName)){
                 List<Point> allPointsFromVectorStore = rocksDBService.getAllPointsFromVectorStore(vectorName);
                 List<Payload> payloads = allPointsFromVectorStore.stream()
-                        .map(point -> new Payload(point.getId().toString(),point.getMetadata(),point.getContent(), List.of(), point.getVector()))
+                        .map(point -> new Payload(point.getId().toString(), point.getMetadata(),
+                                point.getContent(), List.of(), point.getVector()))
+                        .filter(point -> filterPayload(point, filters))
                         .collect(Collectors.toList());
                 return new ResponseEntity<>(payloads, HttpStatus.OK);
             }
         }
+
         assert vectorStore != null;
         List<Payload> payloads = vectorStore.getPoints().stream()
-                .map(point -> new Payload(point.getId().toString(),point.getMetadata(),point.getContent(), List.of(), point.getVector()))
+                .map(point -> new Payload(point.getId().toString(), point.getMetadata(),
+                        point.getContent(), List.of(), point.getVector()))
+                .filter(point -> filterPayload(point, filters))
                 .collect(Collectors.toList());
         return new ResponseEntity<>(payloads, HttpStatus.OK);
+    }
+
+    private List<FilterCriteria> convertToFilterCriteria(MultiValueMap<String, String> metadata) {
+        List<FilterCriteria> filters = new ArrayList<>();
+
+        metadata.forEach((key, values) -> {
+            if (key.startsWith("metadata.")) {
+                String[] parts = key.split("\\.");
+                if (parts.length >= 3) {  // metadata.field.operator format
+                    String field = parts[1];
+                    String operator = parts[2];
+                    values.forEach(value -> {
+                        FilterCriteria filter = new FilterCriteria();
+                        filter.setField(field);
+                        filter.setOperator(operator);
+                        filter.setValue(parseValue(value));
+                        filters.add(filter);
+                    });
+                }
+            }
+        });
+
+        return filters;
+    }
+
+    private Object parseValue(String value) {
+        // Try parsing as number first
+        try {
+            if (value.contains(".")) {
+                return Double.parseDouble(value);
+            }
+            return Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            // If not a number, return as string
+            return value;
+        }
+    }
+
+    private boolean filterPayload(Payload payload, List<FilterCriteria> filters) {
+        return filters.stream().allMatch(filter -> {
+            Object pointValue = payload.getMetadata().get(filter.getField());
+            if (pointValue == null) {
+                return false;
+            }
+
+            return compareValues(pointValue, filter.getValue(), filter.getOperator());
+        });
+    }
+
+    private boolean compareValues(Object pointValue, Object filterValue, String operator) {
+        // Convert to comparable if numbers
+        if (pointValue instanceof Number && filterValue instanceof Number) {
+            double point = ((Number) pointValue).doubleValue();
+            double filter = ((Number) filterValue).doubleValue();
+
+            return switch (operator.toLowerCase()) {
+                case "eq" -> point == filter;
+                case "ne" -> point != filter;
+                case "gt" -> point > filter;
+                case "lt" -> point < filter;
+                case "gte" -> point >= filter;
+                case "lte" -> point <= filter;
+                default -> false;
+            };
+        }
+
+        // String comparison
+        if (pointValue instanceof String && filterValue instanceof String) {
+            String point = (String) pointValue;
+            String filter = (String) filterValue;
+
+            return switch (operator.toLowerCase()) {
+                case "eq" -> point.equalsIgnoreCase(filter);
+                case "ne" -> !point.equalsIgnoreCase(filter);
+                case "like" -> point.toLowerCase().contains(filter.toLowerCase());
+                default -> false;
+            };
+        }
+
+        // Default equals comparison for other types
+        return operator.equals("eq") && pointValue.equals(filterValue);
     }
 
     // Method to fetch CollectionConfig from RocksDB
