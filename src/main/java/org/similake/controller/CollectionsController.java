@@ -14,10 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -41,7 +38,6 @@ public class CollectionsController {
             @PathVariable("storeName") String storeName,
             @RequestHeader("api-key") String apiKey,
             @RequestBody Map<String, Object> requestBody) {
-
 
 
         int size = (int) requestBody.get("size");
@@ -93,6 +89,25 @@ public class CollectionsController {
 
         // Return the combined result of both in-memory and RocksDB vector stores
         return new ResponseEntity<>(allVectorStores, HttpStatus.OK);
+    }
+
+    public Map<String, VectorStore> getAllVectorStores2() {
+        // Retrieve in-memory vector stores
+        Map<String, VectorStore> inMemoryStores = collections.getAllVectorStores();
+
+        // Initialize a map to combine both in-memory and RocksDB vector stores
+        Map<String, VectorStore> allVectorStores = new HashMap<>(inMemoryStores);
+
+        // Fetch vector configurations from RocksDB
+        rocksDBService.fetchAllCollectionConfigs().forEach((name, config) -> {
+            // Only add the vector store from RocksDB if it's not already in memory
+            if (!allVectorStores.containsKey(name)) {
+                VectorStore vectorStore = new VectorStore(config.getSize(), config.getDistance());
+                allVectorStores.put(name, vectorStore);
+            }
+        });
+        // Return the combined result of both in-memory and RocksDB vector stores
+        return allVectorStores;
     }
 
 
@@ -147,10 +162,19 @@ public class CollectionsController {
 
     @GetMapping("/{vectorName}/payloads")
     public ResponseEntity<List<Payload>> getAllPayloads(@PathVariable("vectorName") String vectorName) {
+
         VectorStore vectorStore = collections.getVectorStoreByName(vectorName);
         if (vectorStore == null) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+            Map<String, VectorStore> allVectorStores2 = getAllVectorStores2();
+            if(allVectorStores2.containsKey(vectorName)){
+                List<Point> allPointsFromVectorStore = rocksDBService.getAllPointsFromVectorStore(vectorName);
+                List<Payload> payloads = allPointsFromVectorStore.stream()
+                        .map(point -> new Payload(point.getId().toString(), Map.of("content", point.getContent()), point.getContent(), List.of(), point.getVector()))
+                        .collect(Collectors.toList());
+                return new ResponseEntity<>(payloads, HttpStatus.OK);
+            }
         }
+        assert vectorStore != null;
         List<Payload> payloads = vectorStore.getPoints().stream()
                 .map(point -> new Payload(point.getId().toString(), Map.of("content", point.getContent()), point.getContent(), List.of(), point.getVector()))
                 .collect(Collectors.toList());
