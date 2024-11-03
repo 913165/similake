@@ -8,6 +8,7 @@ import org.similake.model.Payload;
 import org.similake.model.Point;
 import org.similake.model.VectorStore;
 import org.similake.persist.RocksDBService;
+import org.similake.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +36,14 @@ public class CollectionsController {
     @Autowired
     private RocksDBService rocksDBService;
 
+    /**
+     * Endpoint to create a new VectorStore.
+     *
+     * @param storeName   the name of the vector store to be created
+     * @param apiKey      the API key for authentication
+     * @param requestBody the request body containing the vector store configuration
+     * @return a ResponseEntity with a success message or an error message
+     */
     @PutMapping("/{storeName}")
     public ResponseEntity<String> createVectorStore(
             @PathVariable("storeName") String storeName,
@@ -71,15 +80,21 @@ public class CollectionsController {
     }
 
 
-    // GET endpoint to retrieve all VectorStores
+    /**
+     * GET endpoint to retrieve all VectorStores.
+     *
+     * This method retrieves all vector stores from both in-memory and RocksDB storage.
+     * It first fetches the in-memory vector stores and then combines them with the vector
+     * stores fetched from RocksDB, ensuring no duplicates.
+     *
+     * @return a ResponseEntity containing a map of all vector stores and an HTTP status code
+     */
     @GetMapping
     public ResponseEntity<Map<String, VectorStore>> getAllVectorStores() {
         // Retrieve in-memory vector stores
         Map<String, VectorStore> inMemoryStores = collections.getAllVectorStores();
-
         // Initialize a map to combine both in-memory and RocksDB vector stores
         Map<String, VectorStore> allVectorStores = new HashMap<>(inMemoryStores);
-
         // Fetch vector configurations from RocksDB
         rocksDBService.fetchAllCollectionConfigs().forEach((name, config) -> {
             // Only add the vector store from RocksDB if it's not already in memory
@@ -141,7 +156,7 @@ public class CollectionsController {
         String content = payload.getContent();      // Assuming Payload has a getContent() method
         float[] embedding = payload.getEmbedding(); // Assuming Payload has a getEmbedding() method
         Map<String, Object> metadata = payload.getMetadata();// Assuming Payload has a getMetadata() method
-        Point point = new Point(id, content, embedding,metadata);
+        Point point = new Point(id, content, embedding, metadata);
         // First, try to retrieve the vector store from memory
         VectorStore vectorStore = collections.getVectorStoreByName(vectorName);
         // If the vector store is not in memory, check RocksDB
@@ -174,12 +189,12 @@ public class CollectionsController {
         VectorStore vectorStore = collections.getVectorStoreByName(vectorName);
         if (vectorStore == null) {
             Map<String, VectorStore> allVectorStores2 = getAllVectorStores2();
-            if(allVectorStores2.containsKey(vectorName)){
+            if (allVectorStores2.containsKey(vectorName)) {
                 List<Point> allPointsFromVectorStore = rocksDBService.getAllPointsFromVectorStore(vectorName);
                 List<Payload> payloads = allPointsFromVectorStore.stream()
                         .map(point -> new Payload(point.getId().toString(), point.getMetadata(),
                                 point.getContent(), List.of(), point.getVector()))
-                        .filter(point -> filterPayload(point, filters))
+                        .filter(point -> Utils.filterPayload(point, filters))
                         .collect(Collectors.toList());
                 return new ResponseEntity<>(payloads, HttpStatus.OK);
             }
@@ -189,7 +204,7 @@ public class CollectionsController {
         List<Payload> payloads = vectorStore.getPoints().stream()
                 .map(point -> new Payload(point.getId().toString(), point.getMetadata(),
                         point.getContent(), List.of(), point.getVector()))
-                .filter(point -> filterPayload(point, filters))
+                .filter(point -> Utils.filterPayload(point, filters))
                 .collect(Collectors.toList());
         return new ResponseEntity<>(payloads, HttpStatus.OK);
     }
@@ -207,7 +222,7 @@ public class CollectionsController {
                         FilterCriteria filter = new FilterCriteria();
                         filter.setField(field);
                         filter.setOperator(operator);
-                        filter.setValue(parseValue(value));
+                        filter.setValue(Utils.parseValue(value));
                         filters.add(filter);
                     });
                 }
@@ -217,63 +232,8 @@ public class CollectionsController {
         return filters;
     }
 
-    private Object parseValue(String value) {
-        // Try parsing as number first
-        try {
-            if (value.contains(".")) {
-                return Double.parseDouble(value);
-            }
-            return Long.parseLong(value);
-        } catch (NumberFormatException e) {
-            // If not a number, return as string
-            return value;
-        }
-    }
 
-    private boolean filterPayload(Payload payload, List<FilterCriteria> filters) {
-        return filters.stream().allMatch(filter -> {
-            Object pointValue = payload.getMetadata().get(filter.getField());
-            if (pointValue == null) {
-                return false;
-            }
 
-            return compareValues(pointValue, filter.getValue(), filter.getOperator());
-        });
-    }
-
-    private boolean compareValues(Object pointValue, Object filterValue, String operator) {
-        // Convert to comparable if numbers
-        if (pointValue instanceof Number && filterValue instanceof Number) {
-            double point = ((Number) pointValue).doubleValue();
-            double filter = ((Number) filterValue).doubleValue();
-
-            return switch (operator.toLowerCase()) {
-                case "eq" -> point == filter;
-                case "ne" -> point != filter;
-                case "gt" -> point > filter;
-                case "lt" -> point < filter;
-                case "gte" -> point >= filter;
-                case "lte" -> point <= filter;
-                default -> false;
-            };
-        }
-
-        // String comparison
-        if (pointValue instanceof String && filterValue instanceof String) {
-            String point = (String) pointValue;
-            String filter = (String) filterValue;
-
-            return switch (operator.toLowerCase()) {
-                case "eq" -> point.equalsIgnoreCase(filter);
-                case "ne" -> !point.equalsIgnoreCase(filter);
-                case "like" -> point.toLowerCase().contains(filter.toLowerCase());
-                default -> false;
-            };
-        }
-
-        // Default equals comparison for other types
-        return operator.equals("eq") && pointValue.equals(filterValue);
-    }
 
     // Method to fetch CollectionConfig from RocksDB
     @GetMapping("/{collectionName}/config")
@@ -304,7 +264,7 @@ public class CollectionsController {
         String content = payload.getContent();      // Assuming Payload has getContent() method
         float[] embedding = payload.getEmbedding(); // Assuming Payload has getEmbedding() method
         Map<String, Object> metadata = payload.getMetadata();
-        Point point = new Point(id, content, embedding,metadata);
+        Point point = new Point(id, content, embedding, metadata);
 
         // Persist the point using RocksDBService
         String responseMessage = rocksDBService.addPayloadToVectorStore(vectorName, point);
