@@ -51,5 +51,9 @@ public class Collections {
         });
     }
 
+    // Remove a specific VectorStore by name
+    public boolean removeVectorStore(String storeName) {
+        return collectionMap.remove(storeName) != null;
+    }
 
 }

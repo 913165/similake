@@ -354,7 +354,7 @@ public class CollectionsController {
 
         logger.info("Request received to remove vector store: {}", storeName);
         boolean isRemoved = rocksDBService.removeVector(storeName);
-
+        boolean isRemoved2 = collections.removeVectorStore(storeName);
         if (isRemoved) {
             return new ResponseEntity<>("Vector store and configuration removed successfully", HttpStatus.OK);
         } else {
