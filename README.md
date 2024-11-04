@@ -64,7 +64,7 @@ POST http://localhost:6767/collections/vector_store/payload
 ### Bulk Upload Endpoint
 
 ```http
-POST /collections/{vectorName}/payloads/bulk
+POST /collections/{vectorName}/payloads
 ```
 
 #### Request Body Example
