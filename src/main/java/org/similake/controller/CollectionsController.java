@@ -177,6 +177,92 @@ public class CollectionsController {
         return new ResponseEntity<>("Payload added successfully to " + vectorName, HttpStatus.CREATED);
     }
 
+    @PostMapping("/{vectorName}/payloads")
+    public ResponseEntity<String> addPayloads(
+            @PathVariable("vectorName") String vectorName,
+            @RequestBody List<Payload> payloads) {
+
+        logger.info("Bulk payload request received for vector store: {}. Number of payloads: {}",
+                vectorName, payloads.size());
+
+        // Input validation
+        if (payloads == null || payloads.isEmpty()) {
+            return new ResponseEntity<>("No payloads provided", HttpStatus.BAD_REQUEST);
+        }
+
+        // First, try to retrieve the vector store from memory
+        VectorStore vectorStore = collections.getVectorStoreByName(vectorName);
+        int successCount = 0;
+        List<String> failedIds = new ArrayList<>();
+
+        try {
+            // Convert all payloads to points first
+            List<Point> points = payloads.stream()
+                    .map(payload -> {
+                        try {
+                            return new Point(
+                                    UUID.fromString(payload.getId()),
+                                    payload.getContent(),
+                                    payload.getEmbedding(),
+                                    payload.getMetadata()
+                            );
+                        } catch (IllegalArgumentException e) {
+                            failedIds.add(payload.getId());
+                            logger.error("Failed to process payload with ID: {}", payload.getId(), e);
+                            return null;
+                        }
+                    })
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+
+            // If the vector store is not in memory, check RocksDB
+            if (vectorStore == null) {
+                logger.info("VectorStore not found in memory, checking RocksDB: {}", vectorName);
+                // Fetch collection config from RocksDB if available
+                CollectionConfig collectionConfig = rocksDBService.fetchVectorFromStorage(vectorName);
+                if (collectionConfig != null) {
+                    // Persist all points to RocksDB
+                    for (Point point : points) {
+                        rocksDBService.addPayloadToVectorStore(vectorName, point);
+                        successCount++;
+                    }
+                } else {
+                    return new ResponseEntity<>("Vector store not found: " + vectorName,
+                            HttpStatus.NOT_FOUND);
+                }
+            } else {
+                // Add all points to in-memory vector store
+                for (Point point : points) {
+                    vectorStore.addPoint(point);
+                    successCount++;
+                }
+                logger.info("Payloads added to VectorStore: {}. Current size of points: {}",
+                        vectorStore, vectorStore.getPoints().size());
+            }
+
+            // Prepare response message
+            StringBuilder responseMessage = new StringBuilder()
+                    .append("Successfully added ")
+                    .append(successCount)
+                    .append(" payloads to ")
+                    .append(vectorName);
+
+            if (!failedIds.isEmpty()) {
+                responseMessage.append(". Failed to process ")
+                        .append(failedIds.size())
+                        .append(" payloads with IDs: ")
+                        .append(String.join(", ", failedIds));
+                return new ResponseEntity<>(responseMessage.toString(), HttpStatus.PARTIAL_CONTENT);
+            }
+
+            return new ResponseEntity<>(responseMessage.toString(), HttpStatus.CREATED);
+
+        } catch (Exception e) {
+            logger.error("Error processing bulk payload request", e);
+            return new ResponseEntity<>("Error processing bulk payload request: " + e.getMessage(),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 
     @GetMapping("/{vectorName}/payloads")
     public ResponseEntity<List<Payload>> getAllPayloads(
@@ -235,7 +321,7 @@ public class CollectionsController {
 
 
 
-    // Method to fetch CollectionConfig from RocksDB
+    // Me thod to fetch CollectionConfig from RocksDB
     @GetMapping("/{collectionName}/config")
     public ResponseEntity<Object> fetchCollectionConfig(
             @PathVariable("collectionName") String collectionName,
@@ -253,58 +339,6 @@ public class CollectionsController {
 
         // Return the fetched configuration as a response
         return new ResponseEntity<>(config, HttpStatus.OK);
-    }
-
-    @PostMapping("/{vectorName}/payload2")
-    public ResponseEntity<String> addPayloadtodisk(@PathVariable("vectorName") String vectorName, @RequestBody Payload payload) {
-        logger.info("Payload received: {}", payload);
-
-        // Assuming you have a method to convert Payload to Point
-        UUID id = UUID.fromString(payload.getId()); // Assuming Payload has getId() method
-        String content = payload.getContent();      // Assuming Payload has getContent() method
-        float[] embedding = payload.getEmbedding(); // Assuming Payload has getEmbedding() method
-        Map<String, Object> metadata = payload.getMetadata();
-        Point point = new Point(id, content, embedding, metadata);
-
-        // Persist the point using RocksDBService
-        String responseMessage = rocksDBService.addPayloadToVectorStore(vectorName, point);
-
-        return new ResponseEntity<>(responseMessage, HttpStatus.CREATED);
-    }
-
-    @GetMapping("/{vectorName}/payloads2")
-    public ResponseEntity<List<Payload>> getAllPayloadsFromDisk(@PathVariable("vectorName") String vectorName) {
-        // First, check if the vector store exists in memory
-        VectorStore vectorStore = collections.getVectorStoreByName(vectorName);
-
-        List<Point> points;
-
-        if (vectorStore != null) {
-            // If the vector store exists in memory, get the points from it
-            points = vectorStore.getPoints();
-            logger.info("Fetched payloads from in-memory VectorStore: {}", vectorName);
-        } else {
-            // If not found in memory, fetch the data from RocksDB
-            points = rocksDBService.getAllPointsFromVectorStore(vectorName);
-
-            if (points == null || points.isEmpty()) {
-                return new ResponseEntity<>(HttpStatus.NOT_FOUND); // If no points are found in RocksDB
-            }
-
-            logger.info("Fetched payloads from RocksDB VectorStore: {}", vectorName);
-        }
-
-        // Convert the points to payloads
-        List<Payload> payloads = points.stream()
-                .map(point -> new Payload(
-                        point.getId().toString(),
-                        Map.of("content", point.getContent()),
-                        point.getContent(),
-                        List.of(),
-                        point.getVector()))
-                .collect(Collectors.toList());
-
-        return new ResponseEntity<>(payloads, HttpStatus.OK);
     }
 
     // **New DELETE method to remove vector and its configuration**
