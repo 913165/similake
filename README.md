@@ -55,12 +55,12 @@ POST http://localhost:6767/collections/vector_store/payload
     -0.009170532,
     0.02229309,
     0.026123047,
-    ...
+ 
     0.024642944,
     0.0032863617
   ]
 }
-
+```
 ### Bulk Upload Endpoint
 
 ```http
