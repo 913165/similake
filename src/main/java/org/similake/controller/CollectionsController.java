@@ -160,6 +160,7 @@ public class CollectionsController {
         // First, try to retrieve the vector store from memory
         VectorStore vectorStore = collections.getVectorStoreByName(vectorName);
         // If the vector store is not in memory, check RocksDB
+        String vectorNoeAvailable = "Vector store not found: " + vectorName;
         if (vectorStore == null) {
             logger.info("VectorStore not found in memory, checking RocksDB: {}", vectorName);
             // Fetch collection config from RocksDB if available
@@ -169,8 +170,11 @@ public class CollectionsController {
                 rocksDBService.addPayloadToVectorStore(vectorName, point);
                 return new ResponseEntity<>("Payload added successfully to " + vectorName, HttpStatus.CREATED);
             }
+            else{
+                return new ResponseEntity<>(vectorNoeAvailable, HttpStatus.NOT_FOUND);
+            }
         }
-        assert vectorStore != null;
+       // assert vectorStore != null;
         vectorStore.addPoint(point);
         logger.info("Payload added to VectorStore: {}", vectorStore);
         logger.info("Current size of points: {}", vectorStore.getPoints().size());
