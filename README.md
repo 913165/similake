@@ -10,13 +10,7 @@ Run the Docker container:
   docker run -p 6767:6767 tinumistry/similake
 ```
    
- 
-foe mac os
-```
-docker run -p 6767:6767 tinumistry/similakem2
 
-
-```
 
 ## add new vector store using rest api
 
@@ -43,4 +37,27 @@ curl --location --request DELETE 'http://localhost:6767/collections/vector_store
     "persist" : "true"
   }'
 ```
+## Add Document to Vector Store
+Add a document with embedded vector representation to the collection.
+
+POST http://localhost:6767/collections/vector_store/payload
+### Request Body
+```json
+{
+  "id": "1e2c9361-a9a5-4f85-bd83-75957067eb3b",
+  "metadata": {
+    "brand": "Apple", 
+    "product_name": "Smartphone"
+  },
+  "content": "Apple Latest model smartphone with advanced camera features and a powerful processor.",
+  "media": [],
+  "embedding": [
+    -0.009170532,
+    0.02229309,
+    0.026123047,
+    ...
+    0.024642944,
+    0.0032863617
+  ]
+}
 
