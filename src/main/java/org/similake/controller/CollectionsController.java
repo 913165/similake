@@ -1,13 +1,13 @@
 package org.similake.controller;
 
-import org.similake.collections.config.CollectionConfig;
 import org.similake.collections.Collections;
+import org.similake.collections.config.CollectionConfig;
 import org.similake.creteria.FilterCriteria;
 import org.similake.model.Distance;
 import org.similake.model.Payload;
 import org.similake.model.Point;
 import org.similake.model.VectorStore;
-import org.similake.persist.RocksDBService;
+import org.similake.persist.VectorStoreService;
 import org.similake.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,7 +34,7 @@ public class CollectionsController {
     }
 
     @Autowired
-    private RocksDBService rocksDBService;
+    private VectorStoreService vectorStoreService;
 
     /**
      * Endpoint to create a new VectorStore.
@@ -66,7 +66,7 @@ public class CollectionsController {
         // Conditionally persist or store in memory based on the `persistent` flag
         if (persist != null && persist.equals("true")) {
             // Code for persisting the vector store (e.g., save to disk or database)
-            String response = rocksDBService.persistVectorToStorage(storeName, config);
+            String response = vectorStoreService.persistVectorToStorage(storeName, config);
             return new ResponseEntity<>(response, HttpStatus.OK);
         } else {
             // Create a new VectorStore and add it to the collections
@@ -96,7 +96,7 @@ public class CollectionsController {
         // Initialize a map to combine both in-memory and RocksDB vector stores
         Map<String, VectorStore> allVectorStores = new HashMap<>(inMemoryStores);
         // Fetch vector configurations from RocksDB
-        rocksDBService.fetchAllCollectionConfigs().forEach((name, config) -> {
+        vectorStoreService.fetchAllCollectionConfigs().forEach((name, config) -> {
             // Only add the vector store from RocksDB if it's not already in memory
             if (!allVectorStores.containsKey(name)) {
                 VectorStore vectorStore = new VectorStore(config.getSize(), config.getDistance());
@@ -116,7 +116,7 @@ public class CollectionsController {
         Map<String, VectorStore> allVectorStores = new HashMap<>(inMemoryStores);
 
         // Fetch vector configurations from RocksDB
-        rocksDBService.fetchAllCollectionConfigs().forEach((name, config) -> {
+        vectorStoreService.fetchAllCollectionConfigs().forEach((name, config) -> {
             // Only add the vector store from RocksDB if it's not already in memory
             if (!allVectorStores.containsKey(name)) {
                 VectorStore vectorStore = new VectorStore(config.getSize(), config.getDistance());
@@ -137,7 +137,7 @@ public class CollectionsController {
 
         if (vectorStore == null) {
             // Fetch the collection configuration from RocksDB
-            CollectionConfig config = rocksDBService.fetchVectorFromStorage(storeName);
+            CollectionConfig config = vectorStoreService.fetchVectorFromStorage(storeName);
             if (config == null) {
                 return new ResponseEntity<>(HttpStatus.NOT_FOUND);
             } else {
@@ -164,10 +164,10 @@ public class CollectionsController {
         if (vectorStore == null) {
             logger.info("VectorStore not found in memory, checking RocksDB: {}", vectorName);
             // Fetch collection config from RocksDB if available
-            CollectionConfig collectionConfig = rocksDBService.fetchVectorFromStorage(vectorName);
+            CollectionConfig collectionConfig = vectorStoreService.fetchVectorFromStorage(vectorName);
             if (collectionConfig != null) {
                 // Persist the point to RocksDB (if applicable)
-                rocksDBService.addPayloadToVectorStore(vectorName, point);
+                vectorStoreService.addPayloadToVectorStore(vectorName, point);
                 return new ResponseEntity<>("Payload added successfully to " + vectorName, HttpStatus.CREATED);
             }
             else{
@@ -223,11 +223,11 @@ public class CollectionsController {
             if (vectorStore == null) {
                 logger.info("VectorStore not found in memory, checking RocksDB: {}", vectorName);
                 // Fetch collection config from RocksDB if available
-                CollectionConfig collectionConfig = rocksDBService.fetchVectorFromStorage(vectorName);
+                CollectionConfig collectionConfig = vectorStoreService.fetchVectorFromStorage(vectorName);
                 if (collectionConfig != null) {
                     // Persist all points to RocksDB
                     for (Point point : points) {
-                        rocksDBService.addPayloadToVectorStore(vectorName, point);
+                        vectorStoreService.addPayloadToVectorStore(vectorName, point);
                         successCount++;
                     }
                 } else {
@@ -280,7 +280,7 @@ public class CollectionsController {
         if (vectorStore == null) {
             Map<String, VectorStore> allVectorStores2 = getAllVectorStores2();
             if (allVectorStores2.containsKey(vectorName)) {
-                List<Point> allPointsFromVectorStore = rocksDBService.getAllPointsFromVectorStore(vectorName);
+                List<Point> allPointsFromVectorStore = vectorStoreService.getAllPointsFromVectorStore(vectorName);
                 List<Payload> payloads = allPointsFromVectorStore.stream()
                         .map(point -> new Payload(point.getId().toString(), point.getMetadata(),
                                 point.getContent(), List.of(), point.getVector()))
@@ -334,7 +334,7 @@ public class CollectionsController {
         // For security, you can add API key validation here if needed
 
         // Fetch the collection configuration from RocksDB
-        CollectionConfig config = rocksDBService.fetchVectorFromStorage(collectionName);
+        CollectionConfig config = vectorStoreService.fetchVectorFromStorage(collectionName);
 
         // Check if the collection exists
         if (config == null) {
@@ -351,7 +351,7 @@ public class CollectionsController {
             @PathVariable("storeName") String storeName) {
 
         logger.info("Request received to remove vector store: {}", storeName);
-        boolean isRemoved = rocksDBService.removeVector(storeName);
+        boolean isRemoved = vectorStoreService.removeVector(storeName);
         boolean isRemoved2 = collections.removeVectorStore(storeName);
         if (isRemoved) {
             return new ResponseEntity<>("Vector store and configuration removed successfully", HttpStatus.OK);
