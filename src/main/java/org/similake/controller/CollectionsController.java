@@ -360,10 +360,12 @@ public class CollectionsController {
         }
     }
 
-   /* Endpoint to calculate cosine similarity between a query vector and all vectors in a store.
+    /* Endpoint to calculate cosine similarity between a query vector and all vectors in a store.
+     * Calculates the cosine similarity between two vectors.
+     * Cosine similarity = (A·B)/(||A||×||B||)
+     * where A·B is the dot product and ||A||, ||B|| are the magnitudes.
      * Returns vectors sorted by similarity score in descending order.
-     *
-             * @param vectorName the name of the vector store to search in
+     * @param vectorName the name of the vector store to search in
      * @param payload the query payload containing the vector to compare against
      * @param limit optional parameter to limit the number of results (default: 10)
      * @param threshold optional parameter to filter results below a similarity threshold (default: 0.0)
