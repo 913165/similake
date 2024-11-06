@@ -9,7 +9,6 @@ import org.similake.model.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
@@ -133,7 +132,7 @@ public class RocksDBService implements VectorStoreService{
     }
 
     // Method to add a Payload (Point) to a VectorStore and persist to RocksDB
-    public String addPayloadToVectorStore(String vectorName, Point point) {
+    public void addPayloadToVectorStore(String vectorName, Point point) {
         logger.info("Adding payload to VectorStore: {}", vectorName);
 
         try (final Options options = new Options().setCreateIfMissing(true)) {
@@ -151,7 +150,6 @@ public class RocksDBService implements VectorStoreService{
             throw new RuntimeException("Failed to add payload to VectorStore", e);
         }
 
-        return "Payload added successfully to " + vectorName;
     }
 
     // Helper method to serialize Point object to byte array
@@ -289,6 +287,11 @@ public class RocksDBService implements VectorStoreService{
         }
 
         return isSuccess;
+    }
+
+    @Override
+    public Double calculateCosineSimilarity(float[] vector1, float[] vector2) {
+        return 0.0;
     }
 
     // Helper method to recursively delete a directory and its contents

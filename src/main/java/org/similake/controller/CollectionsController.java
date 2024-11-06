@@ -360,4 +360,123 @@ public class CollectionsController {
         }
     }
 
+   /* Endpoint to calculate cosine similarity between a query vector and all vectors in a store.
+     * Returns vectors sorted by similarity score in descending order.
+     *
+             * @param vectorName the name of the vector store to search in
+     * @param payload the query payload containing the vector to compare against
+     * @param limit optional parameter to limit the number of results (default: 10)
+     * @param threshold optional parameter to filter results below a similarity threshold (default: 0.0)
+     * @param metadata optional parameter for filtering payloads based on metadata
+     * @return ResponseEntity containing list of PayloadSimilarity objects
+     */
+    @PostMapping("/{vectorName}/similarity")
+    public ResponseEntity<List<PayloadSimilarity>> calculateCosineSimilarity(
+            @PathVariable("vectorName") String vectorName,
+            @RequestBody Payload payload,
+            @RequestParam(defaultValue = "10") int limit,
+            @RequestParam(defaultValue = "0.0") double threshold,
+            @RequestParam MultiValueMap<String, String> metadata) {
+
+        logger.info("Calculating cosine similarity for vector store: {} with metadata filters", vectorName);
+
+        try {
+            // Validate input payload
+            if (payload == null || payload.getEmbedding() == null || payload.getEmbedding().length == 0) {
+                logger.error("Invalid input payload for similarity calculation");
+                return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+            }
+
+            // Get query vector
+            float[] queryVector = payload.getEmbedding();
+
+            // Get all payloads with applied filters
+            List<Payload> filteredPayloads = getAllPayloadsForSimilarity(vectorName, metadata);
+
+            if (filteredPayloads.isEmpty()) {
+                logger.warn("No payloads found in vector store {} with given filters", vectorName);
+                return new ResponseEntity<>(List.of(), HttpStatus.OK);
+            }
+
+            // Calculate similarities for filtered payloads
+            List<PayloadSimilarity> similarities = new ArrayList<>();
+            for (Payload candidatePayload : filteredPayloads) {
+                float[] vector = candidatePayload.getEmbedding();
+                Double similarity = vectorStoreService.calculateCosineSimilarity(queryVector, vector);
+
+                if (similarity != null && similarity >= threshold) {
+                    PayloadSimilarity payloadSimilarity = new PayloadSimilarity(candidatePayload, similarity);
+                    similarities.add(payloadSimilarity);
+                }
+            }
+
+            // Sort by similarity in descending order
+            similarities.sort((a, b) -> Double.compare(b.getSimilarity(), a.getSimilarity()));
+
+            // Limit results
+            List<PayloadSimilarity> limitedResults = similarities.stream()
+                    .limit(limit)
+                    .collect(Collectors.toList());
+
+            logger.info("Found {} similar vectors above threshold {} in store {} after filtering",
+                    limitedResults.size(), threshold, vectorName);
+
+            return new ResponseEntity<>(limitedResults, HttpStatus.OK);
+
+        } catch (Exception e) {
+            logger.error("Error calculating cosine similarity: {}", e.getMessage(), e);
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+        }
+
+
+    public List<Payload> getAllPayloadsForSimilarity(
+            @PathVariable("vectorName") String vectorName,
+            @RequestParam MultiValueMap<String, String> metadata) {
+
+        List<FilterCriteria> filters = convertToFilterCriteria(metadata);
+        logger.info("Filters: {}", filters);
+
+        VectorStore vectorStore = collections.getVectorStoreByName(vectorName);
+        if (vectorStore == null) {
+            Map<String, VectorStore> allVectorStores2 = getAllVectorStores2();
+            if (allVectorStores2.containsKey(vectorName)) {
+                List<Point> allPointsFromVectorStore = vectorStoreService.getAllPointsFromVectorStore(vectorName);
+                return allPointsFromVectorStore.stream()
+                        .map(point -> new Payload(point.getId().toString(), point.getMetadata(),
+                                point.getContent(), List.of(), point.getVector()))
+                        .filter(point -> Utils.filterPayload(point, filters))
+                        .collect(Collectors.toList());
+            }
+        }
+
+        assert vectorStore != null;
+        return vectorStore.getPoints().stream()
+                .map(point -> new Payload(point.getId().toString(), point.getMetadata(),
+                        point.getContent(), List.of(), point.getVector()))
+                .filter(point -> Utils.filterPayload(point, filters))
+                .collect(Collectors.toList());
+    }
+
 }
+
+class PayloadSimilarity {
+    private final Payload payload;
+    private final double similarity;
+
+    public PayloadSimilarity(Payload payload, double similarity) {
+        this.payload = payload;
+        this.similarity = similarity;
+    }
+
+    public Payload getPayload() {
+        return payload;
+    }
+
+    public double getSimilarity() {
+        return similarity;
+    }
+
+
+}
+

@@ -21,11 +21,13 @@ public interface VectorStoreService {
     Map<String, CollectionConfig> fetchAllCollectionConfigs();
 
     // Method to add a Point payload to a VectorStore
-    String addPayloadToVectorStore(String vectorName, Point point);
+    void addPayloadToVectorStore(String vectorName, Point point);
 
     // Method to fetch all Points from storage for a given vector store
     List<Point> getAllPointsFromVectorStore(String vectorName);
 
     // **New Method** to remove a vector (all its points) and its configuration
     boolean removeVector(String collectionName);
+
+    public Double calculateCosineSimilarity(float[] vector1, float[] vector2);
 }

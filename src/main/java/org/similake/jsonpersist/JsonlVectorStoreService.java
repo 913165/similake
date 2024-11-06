@@ -228,7 +228,7 @@ public class JsonlVectorStoreService implements VectorStoreService {
         return collectionConfigs;
     }
 
-    public String addPayloadToVectorStore(String vectorName, Point point) {
+    public void addPayloadToVectorStore(String vectorName, Point point) {
         logger.info("Adding payload to VectorStore: {}", vectorName);
         try {
             // Ensure collection exists
@@ -241,7 +241,6 @@ public class JsonlVectorStoreService implements VectorStoreService {
             Files.write(vectorPath, jsonLine.getBytes(), StandardOpenOption.APPEND);
 
             logger.info("Payload added to VectorStore: {}", vectorName);
-            return "Payload added successfully to " + vectorName;
         } catch (IOException e) {
             logger.error("Failed to add payload: {}", e.getMessage());
             throw new RuntimeException("Failed to add payload to VectorStore", e);
@@ -394,5 +393,66 @@ public class JsonlVectorStoreService implements VectorStoreService {
         }
 
         return success.get();
+    }
+
+    /**
+     * Calculates the cosine similarity between two vectors.
+     * Cosine similarity = (A·B)/(||A||×||B||)
+     * where A·B is the dot product and ||A||, ||B|| are the magnitudes.
+     *
+     * @param vector1 First vector
+     * @param vector2 Second vector
+     * @return Cosine similarity value between -1 and 1, or null if vectors are null or of different lengths
+     * @throws IllegalArgumentException if vectors are of different lengths
+     */
+    public Double calculateCosineSimilarity(float[] vector1, float[] vector2) {
+        if (vector1 == null || vector2 == null) {
+            logger.warn("One or both vectors are null");
+            return null;
+        }
+
+        if (vector1.length != vector2.length) {
+            logger.error("Vector dimensions do not match: {} vs {}", vector1.length, vector2.length);
+            throw new IllegalArgumentException("Vectors must have the same dimension");
+        }
+
+        if (vector1.length == 0) {
+            logger.warn("Vectors are empty");
+            return null;
+        }
+
+        try {
+            double dotProduct = 0.0;
+            double norm1 = 0.0;
+            double norm2 = 0.0;
+
+            for (int i = 0; i < vector1.length; i++) {
+                dotProduct += vector1[i] * vector2[i];
+                norm1 += vector1[i] * vector1[i];
+                norm2 += vector2[i] * vector2[i];
+            }
+
+            // Check for zero vectors
+            if (norm1 == 0 || norm2 == 0) {
+                logger.warn("One or both vectors have zero magnitude");
+                return 0.0;
+            }
+
+            double similarity = dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
+
+            // Handle potential numerical errors
+            if (similarity > 1.0) {
+                similarity = 1.0;
+            } else if (similarity < -1.0) {
+                similarity = -1.0;
+            }
+
+            logger.debug("Calculated cosine similarity: {}", similarity);
+            return similarity;
+
+        } catch (Exception e) {
+            logger.error("Error calculating cosine similarity: {}", e.getMessage());
+            throw new RuntimeException("Failed to calculate cosine similarity", e);
+        }
     }
 }
