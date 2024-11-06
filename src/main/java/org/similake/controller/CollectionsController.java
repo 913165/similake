@@ -373,7 +373,7 @@ public class CollectionsController {
     @PostMapping("/{vectorName}/similarity")
     public ResponseEntity<List<PayloadSimilarity>> calculateCosineSimilarity(
             @PathVariable("vectorName") String vectorName,
-            @RequestBody Payload payload,
+            @RequestBody float[] embedding,
             @RequestParam(defaultValue = "10") int limit,
             @RequestParam(defaultValue = "0.0") double threshold,
             @RequestParam MultiValueMap<String, String> metadata) {
@@ -381,14 +381,8 @@ public class CollectionsController {
         logger.info("Calculating cosine similarity for vector store: {} with metadata filters", vectorName);
 
         try {
-            // Validate input payload
-            if (payload == null || payload.getEmbedding() == null || payload.getEmbedding().length == 0) {
-                logger.error("Invalid input payload for similarity calculation");
-                return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-            }
 
             // Get query vector
-            float[] queryVector = payload.getEmbedding();
 
             // Get all payloads with applied filters
             List<Payload> filteredPayloads = getAllPayloadsForSimilarity(vectorName, metadata);
@@ -402,7 +396,7 @@ public class CollectionsController {
             List<PayloadSimilarity> similarities = new ArrayList<>();
             for (Payload candidatePayload : filteredPayloads) {
                 float[] vector = candidatePayload.getEmbedding();
-                Double similarity = vectorStoreService.calculateCosineSimilarity(queryVector, vector);
+                Double similarity = vectorStoreService.calculateCosineSimilarity(embedding, vector);
 
                 if (similarity != null && similarity >= threshold) {
                     PayloadSimilarity payloadSimilarity = new PayloadSimilarity(candidatePayload, similarity);
