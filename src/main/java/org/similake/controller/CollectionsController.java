@@ -44,7 +44,7 @@ public class CollectionsController {
      * @param requestBody the request body containing the vector store configuration
      * @return a ResponseEntity with a success message or an error message
      */
-    @PutMapping("/{storeName}")
+    @PostMapping("/{storeName}")
     public ResponseEntity<String> createVectorStore(
             @PathVariable("storeName") String storeName,
             @RequestHeader("api-key") String apiKey,
