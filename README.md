@@ -1,6 +1,6 @@
 ﻿# similake
 
-The similake project provides a REST API for managing vector stores. It includes functionalities to:
+The similake is a vector database and it also  provides a REST API for managing vector stores. It includes functionalities to:
 
 Run the application using Docker.
 Add and delete vector stores.
